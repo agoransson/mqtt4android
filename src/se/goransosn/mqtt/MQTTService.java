@@ -105,7 +105,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 	/**
 	 * Send a CONNECT message to the server.
 	 */
-	public void connect() {
+	private void connect(String host, int port, String uid) {
 		try {
 			new MQTTHelperThread().execute(MQTT.connect(uid));
 		} catch (UnsupportedEncodingException e) {
@@ -157,12 +157,9 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 		this.uid = uid;
 	}
 
-	public synchronized void open() {
+	public synchronized void connect() {
 		if (DEBUG)
 			Log.d(TAG, "connect to: " + host);
-
-		this.host = host;
-		this.port = port;
 
 		// Cancel any thread attempting to make a connection
 		if (mState == STATE_CONNECTING) {
@@ -205,6 +202,8 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 		mConnectedThread = new ConnectedThread(socket);
 		mConnectedThread.start();
 
+		connect(host, port, uid);
+		
 		setState(STATE_CONNECTED);
 	}
 

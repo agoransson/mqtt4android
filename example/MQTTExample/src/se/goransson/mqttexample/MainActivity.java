@@ -5,10 +5,12 @@ import java.util.ArrayList;
 import se.goransosn.mqtt.MQTTConnectionConstants;
 import se.goransosn.mqtt.MQTTService;
 import se.goransosn.mqtt.MQTTService.MQTTBinder;
+import android.annotation.SuppressLint;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -16,11 +18,14 @@ import android.os.Message;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.view.ViewPager;
+import android.util.Log;
 import android.view.Menu;
 import android.widget.Toast;
 
 public class MainActivity extends FragmentActivity implements
 		MQTTConnectionConstants {
+
+	protected static final String TAG = "MQTTExample";
 
 	ViewPager mViewPager;
 
@@ -70,6 +75,7 @@ public class MainActivity extends FragmentActivity implements
 	}
 
 	private ServiceConnection connection = new ServiceConnection() {
+		@SuppressLint("NewApi")
 		@Override
 		public void onServiceConnected(ComponentName name, IBinder binder) {
 			mqtt = ((MQTTBinder) binder).getService();
@@ -77,12 +83,17 @@ public class MainActivity extends FragmentActivity implements
 
 			mqtt.setHandler(mHandler);
 
-			// mqtt.setHost("");
+			// Default host is test.mosquitto.org (you should change this!)
+			mqtt.setHost("195.178.234.111");
+
+			// Default mqtt port is 1883
 			// mqtt.setPort(1883);
 
-			mqtt.setId("andreas");
+			mqtt.setId(Build.SERIAL);
 
-			mqtt.open();
+			// Open the connection to the MQTT server (this does not send the
+			// connect message)
+			mqtt.connect();
 		}
 
 		@Override
@@ -109,15 +120,14 @@ public class MainActivity extends FragmentActivity implements
 				case STATE_CONNECTED:
 					Toast.makeText(MainActivity.this, "Yay! Connected!",
 							Toast.LENGTH_SHORT).show();
-					mqtt.connect();
 					break;
 				}
 				break;
 
 			case MQTT_RAW_READ:
-//				byte[] buf = (byte[]) msg.obj;
-//				String s = new String(buf);
-//				Toast.makeText(MainActivity.this, s, Toast.LENGTH_SHORT);
+				// byte[] buf = (byte[]) msg.obj;
+				// String s = new String(buf);
+				// Toast.makeText(MainActivity.this, s, Toast.LENGTH_SHORT);
 				break;
 			}
 		}
