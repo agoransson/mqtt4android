@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" >
+
+    <EditText
+        android:id="@+id/publish_topic"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:ems="10"
+        android:hint="@string/subscribe_hint" />
+
+    <EditText
+        android:id="@+id/publish_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/publish_topic"
+        android:layout_centerHorizontal="true"
+        android:ems="10"
+        android:hint="@string/publish_message" >
+
+        <requestFocus />
+    </EditText>
+
+    <Button
+        android:id="@+id/publish_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_below="@+id/publish_message"
+        android:text="@string/publish_button" />
+
+</RelativeLayout>

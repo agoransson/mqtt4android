@@ -1,0 +1,12 @@
+<resources>
+
+    <string name="app_name">MQTTExample</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="menu_settings">Settings</string>
+    <string name="title_activity_main">MQTT Example</string>
+    <string name="button_subscribe">Subscribe</string>
+    <string name="subscribe_hint">Enter topic here...</string>
+    <string name="publish_message">Enter message here...</string>
+    <string name="publish_button">Publish</string>
+
+</resources>
