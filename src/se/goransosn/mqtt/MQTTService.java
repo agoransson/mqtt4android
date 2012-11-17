@@ -35,10 +35,15 @@ import android.util.Log;
  * A simple local service implementation of an mqtt interface for android
  * applications.
  * 
+ * Parts of this class (prominently ConnectThread and ConnectedThread and
+ * methods connected to thread handling) are based on code found in Android
+ * Sample Application "BluetoothChat" by Google, distributed via Android SDK.
+ * 
  * @author ksango
  * 
  */
-public class MQTTService extends Service implements MQTTConnectionConstants {
+public class MQTTService extends Service implements MQTTConnectionConstants,
+		MQTTConstants {
 
 	private static final boolean DEBUG = true;
 
@@ -53,6 +58,9 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 	/** Thread to handle communication when connection is established. */
 	private ConnectedThread mConnectedThread;
 
+	/** Thread to handle ping requests and responses */
+	private PingThread mPingThread;
+
 	/** */
 	private Handler mHandler = null;
 
@@ -65,6 +73,13 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 
 	/** Unique identifier for this client */
 	private String uid;
+
+	private int message_id;
+
+	// PING VARIABLES
+	private volatile boolean pingreq = false;
+	private volatile long pingtime = 0;
+	private volatile long lastaction = 0;
 
 	@Override
 	public void onCreate() {
@@ -115,12 +130,29 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 		}
 	}
 
-	public void publish(String topic, String message) {
-		// TODO
+	public int publish(String topic, String message) {
+		int message_id = getMessageid();
+
+		try {
+			new MQTTHelperThread().execute(MQTT.publish(topic,
+					message.getBytes()));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		return message_id;
 	}
 
-	public void subscribe(String topic) {
-		// TODO
+	public int subscribe(String topic, int qos) {
+		int message_id = getMessageid();
+		try {
+			new MQTTHelperThread().execute(MQTT.subscribe(message_id, topic,
+					qos));
+		} catch (IOException e) {
+			e.printStackTrace();
+			return -1;
+		}
+		return message_id;
 	}
 
 	// public synchronized void start() {
@@ -157,6 +189,10 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 		this.uid = uid;
 	}
 
+	private int getMessageid() {
+		return (message_id == 65536 ? (message_id = 0) : message_id++);
+	}
+
 	public synchronized void connect() {
 		if (DEBUG)
 			Log.d(TAG, "connect to: " + host);
@@ -173,6 +209,12 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 		if (mConnectedThread != null) {
 			mConnectedThread.cancel();
 			mConnectedThread = null;
+		}
+
+		// Cancel any thread currently running a ping check
+		if (mPingThread != null) {
+			mPingThread.cancel();
+			mPingThread = null;
 		}
 
 		// Start the thread to connect with the given device
@@ -198,12 +240,22 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 			mConnectedThread = null;
 		}
 
+		// Cancel any thread currently running a ping check
+		if (mPingThread != null) {
+			mPingThread.cancel();
+			mPingThread = null;
+		}
+
 		// Start the thread to manage the connection and perform transmissions
 		mConnectedThread = new ConnectedThread(socket);
 		mConnectedThread.start();
 
+		// Start the ping check thread
+		mPingThread = new PingThread();
+		mPingThread.start();
+
 		connect(host, port, uid);
-		
+
 		setState(STATE_CONNECTED);
 	}
 
@@ -238,6 +290,87 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 			mHandler.obtainMessage(STATE_CHANGE, state, -1).sendToTarget();
 	}
 
+	private class PingThread extends Thread {
+
+		private static final int PING_TIMEOUT = 10000;
+
+		private static final int PING_GRACE = 2000;
+
+		public PingThread() {
+			if (DEBUG)
+				Log.d(TAG, "CREATE mPingthread ");
+
+			// Set the current time as the last action
+			lastaction = System.currentTimeMillis();
+		}
+
+		@Override
+		public void run() {
+			boolean local_pingreq = pingreq;
+			long local_pingtime = pingtime;
+			long local_lastaction = lastaction;
+
+			while (true) {
+				if (local_pingreq != pingreq) {
+					// TODO React to when the listener thread changed the
+					// pingreq
+					local_pingreq = pingreq;
+
+					if (DEBUG)
+						Log.i(TAG, "Detected change in volatile var: pingreq");
+				}
+
+				if (local_lastaction != lastaction) {
+					// TODO React to when a new action is set
+					local_lastaction = lastaction;
+
+					if (DEBUG)
+						Log.i(TAG,
+								"Detected change in volatile var: lastaction");
+				}
+
+				if (local_pingreq) {
+					// If we're expecting a ping response; detect if we've timed
+					// out.
+					if ((System.currentTimeMillis() - local_lastaction) > (PING_TIMEOUT + PING_GRACE)) {
+						// Disconnect?
+						// TODO Disconnect
+						if (DEBUG)
+							Log.i(TAG,
+									"Ping time out detected, should disconnect?");
+					}
+				} else {
+					// If the last action was too long ago; send a ping
+					if ((System.currentTimeMillis() - local_lastaction) > PING_TIMEOUT) {
+						try {
+							// Send ping
+							new MQTTHelperThread().execute(MQTT.ping());
+
+							// Set volatile pingreq var to true
+							pingreq = true;
+
+							if (DEBUG)
+								Log.i(TAG, "Sending ping req");
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+					}
+				}
+
+				try {
+					Thread.sleep(200);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+		public void cancel() {
+			// TODO do we need to do something?
+		}
+
+	}
+
 	private class ConnectThread extends Thread {
 		private static final String TAG = "ConnectThread";
 
@@ -249,6 +382,9 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 		private InetSocketAddress remoteAddr;
 
 		public ConnectThread(String host, int port) {
+			if (DEBUG)
+				Log.d(TAG, "CREATE mConnectThread ");
+
 			Socket tmp = new Socket();
 
 			mmSocket = tmp;
@@ -256,12 +392,18 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 
 		public void run() {
 			if (DEBUG)
+				Log.i(TAG, "BEGIN mPingThread");
+
+			boolean local_pingreq = pingreq;
+			long local_pingtime = pingtime;
+
+			if (DEBUG)
 				Log.i(TAG, "BEGIN mConnectThread");
 
 			setName("ConnectThread");
-			
+
 			remoteAddr = new InetSocketAddress(host, port);
-			
+
 			// Make a connection to the Socket
 			try {
 				// This is a blocking call and will only return on a
@@ -309,7 +451,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 
 		public ConnectedThread(Socket socket) {
 			if (DEBUG)
-				Log.d(TAG, "create ConnectedThread: ");
+				Log.d(TAG, "CREATE mConnectedThread");
 
 			mmSocket = socket;
 			InputStream tmpIn = null;
@@ -344,6 +486,58 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 						// Send the obtained bytes to the UI Activity
 						mHandler.obtainMessage(MQTT_RAW_READ, bytes, -1, buffer)
 								.sendToTarget();
+
+					if (bytes > 0) {
+						MQTTMessage msg = MQTT.decode(buffer);
+
+						// Share the recieved msg type back to activity
+						if (mHandler != null)
+							mHandler.obtainMessage(msg.type, msg.payload)
+									.sendToTarget();
+
+						// Handle automatic responses here
+						switch (msg.type) {
+						case PUBLISH:
+							// No need to act on normal PUBLISH messages.
+							break;
+						case PUBACK:
+							break;
+						case PUBREC:
+							break;
+						case PUBREL:
+							break;
+						case PUBCOMP:
+							break;
+						case SUBSCRIBE:
+							// The client shouldn't receive any SUBSCRIBE
+							// messages.
+							break;
+						case SUBACK:
+							break;
+						case UNSUBSCRIBE:
+							break;
+						case UNSUBACK:
+							break;
+						case PINGREQ:
+							// The client shouldn't receive any PINGREQ
+							// messages.
+							break;
+						case PINGRESP:
+							// TODO PINGREQ was successful, connections still
+							// alive.
+							pingreq = false;
+
+							if (DEBUG)
+								Log.i(TAG, "Got ping response");
+
+							break;
+						case DISCONNECT:
+							// TODO close all threads when receiving the
+							// DISCONNECT message.
+							break;
+						}
+					}
+
 				} catch (IOException e) {
 					Log.e(TAG, "disconnected", e);
 					connectionLost();
@@ -369,6 +563,8 @@ public class MQTTService extends Service implements MQTTConnectionConstants {
 					// Share the sent message back to the UI Activity
 					mHandler.obtainMessage(MQTT_RAW_PUBLISH, -1, -1, buffer)
 							.sendToTarget();
+
+				lastaction = System.currentTimeMillis();
 			} catch (IOException e) {
 				Log.e(TAG, "Exception during write", e);
 			}

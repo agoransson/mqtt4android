@@ -4,7 +4,7 @@
     android:layout_height="match_parent" >
 
     <EditText
-        android:id="@+id/editText1"
+        android:id="@+id/subscribe_topic"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true"
@@ -16,26 +16,26 @@
     </EditText>
 
     <Button
-        android:id="@+id/button1"
+        android:id="@+id/subscribe_button"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/editText1"
+        android:layout_below="@+id/subscribe_topic"
         android:layout_centerHorizontal="true"
         android:text="@string/button_subscribe" />
 
     <ScrollView
-        android:id="@+id/scrollView1"
+        android:id="@+id/subscribe_scrollview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_alignParentLeft="true"
-        android:layout_below="@+id/button1" >
+        android:layout_below="@+id/subscribe_button" >
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent" >
 
             <TextView
-                android:id="@+id/textView1"
+                android:id="@+id/subscribe_log"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="TextView" />

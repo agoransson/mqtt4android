@@ -3,6 +3,7 @@ package se.goransson.mqttexample;
 import java.util.ArrayList;
 
 import se.goransosn.mqtt.MQTTConnectionConstants;
+import se.goransosn.mqtt.MQTTConstants;
 import se.goransosn.mqtt.MQTTService;
 import se.goransosn.mqtt.MQTTService.MQTTBinder;
 import android.annotation.SuppressLint;
@@ -23,7 +24,7 @@ import android.view.Menu;
 import android.widget.Toast;
 
 public class MainActivity extends FragmentActivity implements
-		MQTTConnectionConstants {
+		MQTTConnectionConstants, MQTTConstants {
 
 	protected static final String TAG = "MQTTExample";
 
@@ -89,10 +90,10 @@ public class MainActivity extends FragmentActivity implements
 			// Default mqtt port is 1883
 			// mqtt.setPort(1883);
 
+			// Set a unique id for this client-broker combination
 			mqtt.setId(Build.SERIAL);
 
-			// Open the connection to the MQTT server (this does not send the
-			// connect message)
+			// Open the connection to the MQTT server
 			mqtt.connect();
 		}
 
@@ -124,6 +125,17 @@ public class MainActivity extends FragmentActivity implements
 				}
 				break;
 
+			case PUBLISH:
+				byte[] payload = (byte[]) msg.obj;
+
+				Log.i(TAG, "recieved payload");
+				
+				SubscribeFragment fragment = (SubscribeFragment) pageAdapter.getItem(0);
+				
+				String message = new String(payload);
+				fragment.appendMessage(message);
+				break;
+
 			case MQTT_RAW_READ:
 				// byte[] buf = (byte[]) msg.obj;
 				// String s = new String(buf);
@@ -135,10 +147,10 @@ public class MainActivity extends FragmentActivity implements
 	};
 
 	protected void publish(String topic, String message) {
-		// mqtt.publish(topic, message);
+		mqtt.publish(topic, message);
 	}
 
 	protected void subscribe(String topic) {
-		// mqtt.subscribe(topic);
+		mqtt.subscribe(topic, AT_MOST_ONCE);
 	}
 }

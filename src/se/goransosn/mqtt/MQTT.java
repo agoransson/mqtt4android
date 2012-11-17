@@ -291,7 +291,7 @@ public class MQTT implements MQTTConstants, MQTTVersion {
 		}
 
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
-		for (int b = offset; b < mqtt.remainingLength; b++)
+		for (int b = offset; b < mqtt.remainingLength+2; b++)
 			payload.write(message[b]);
 		mqtt.payload = payload.toByteArray();
 
