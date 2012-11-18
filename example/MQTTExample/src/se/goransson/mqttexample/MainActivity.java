@@ -85,7 +85,7 @@ public class MainActivity extends FragmentActivity implements
 			mqtt.setHandler(mHandler);
 
 			// Default host is test.mosquitto.org (you should change this!)
-			mqtt.setHost("195.178.234.111");
+			// mqtt.setHost("195.178.234.111");
 
 			// Default mqtt port is 1883
 			// mqtt.setPort(1883);
@@ -129,9 +129,10 @@ public class MainActivity extends FragmentActivity implements
 				byte[] payload = (byte[]) msg.obj;
 
 				Log.i(TAG, "recieved payload");
-				
-				SubscribeFragment fragment = (SubscribeFragment) pageAdapter.getItem(0);
-				
+
+				SubscribeFragment fragment = (SubscribeFragment) pageAdapter
+						.getItem(0);
+
 				String message = new String(payload);
 				fragment.appendMessage(message);
 				break;

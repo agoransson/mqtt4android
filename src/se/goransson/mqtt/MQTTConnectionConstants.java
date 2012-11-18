@@ -1,4 +1,4 @@
-package se.goransosn.mqtt;
+package se.goransson.mqtt;
 
 import se.goransson.mqtt.R;
 

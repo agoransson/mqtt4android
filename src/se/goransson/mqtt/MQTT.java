@@ -1,4 +1,4 @@
-package se.goransosn.mqtt;
+package se.goransson.mqtt;
 
 /*
  * Copyright (C) 2012 Andreas Göransson, David Cuartielles
@@ -120,14 +120,14 @@ public class MQTT implements MQTTConstants, MQTTVersion {
 	 * @throws IOException
 	 * @throws UnsupportedEncodingException
 	 */
-	public static byte[] connect(String identifier) throws UnsupportedEncodingException,
+	public static byte[] connect(String identifier, boolean clean_session) throws UnsupportedEncodingException,
 			IOException {
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
 		payload.write(0);
 		payload.write(identifier.length());
 		payload.write(identifier.getBytes("UTF-8"));
 		return encode(CONNECT, false, 0, false, payload.toByteArray(), "false",
-				"false", "false", "false", "false");
+				"false", "false", "false", Boolean.toString(clean_session));
 	}
 
 	/**

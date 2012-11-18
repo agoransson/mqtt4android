@@ -1,4 +1,4 @@
-package se.goransosn.mqtt;
+package se.goransson.mqtt;
 
 /*
  * Copyright (C) 2012 Andreas Göransson, David Cuartielles
@@ -27,6 +27,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
@@ -45,12 +46,12 @@ import android.util.Log;
 public class MQTTService extends Service implements MQTTConnectionConstants,
 		MQTTConstants {
 
-	private static final boolean DEBUG = true;
+	private static final boolean DEBUG = false;
 
 	private static final String TAG = "MQTTService";
 
 	/** Current state of the connection */
-	private int mState = STATE_NONE;
+	private volatile int mState = STATE_NONE;
 
 	/** Thread to handle setup of connections */
 	private ConnectThread mConnectThread;
@@ -76,6 +77,8 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 
 	private int message_id;
 
+	private boolean clean_session = true;
+
 	// PING VARIABLES
 	private volatile boolean pingreq = false;
 	private volatile long pingtime = 0;
@@ -86,12 +89,19 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		super.onCreate();
 
 		// TODO something when started
+
+		if (DEBUG)
+			Log.i(TAG, "onCreate");
 	}
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		// Start a sticky service, the system will try to recreate this service
 		// if killed.
+
+		if (DEBUG)
+			Log.i(TAG, "onStartCommand");
+
 		return START_STICKY;
 	}
 
@@ -99,11 +109,35 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	public void onDestroy() {
 		super.onDestroy();
 
-		// TODO something when destroyed
+		// Kill everything when we stop the service
+		// Cancel the thread that completed the connection
+		if (mConnectThread != null) {
+			mConnectThread.cancel();
+			mConnectThread = null;
+		}
+
+		// Cancel any thread currently running a connection
+		if (mConnectedThread != null) {
+			mConnectedThread.cancel();
+			mConnectedThread = null;
+		}
+
+		// Cancel any thread currently running a ping check
+		if (mPingThread != null) {
+			mPingThread.cancel();
+			mPingThread = null;
+		}
+
+		if (DEBUG)
+			Log.i(TAG, "onDestroy");
 	}
 
 	@Override
 	public IBinder onBind(Intent intent) {
+
+		if (DEBUG)
+			Log.i(TAG, "onBind");
+
 		return mBinder;
 	}
 
@@ -122,7 +156,11 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	 */
 	private void connect(String host, int port, String uid) {
 		try {
-			new MQTTHelperThread().execute(MQTT.connect(uid));
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
+				new MQTTHelperThread()
+						.execute(MQTT.connect(uid, clean_session));
+			else
+				mConnectedThread.write(MQTT.connect(uid, clean_session));
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
@@ -130,12 +168,31 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		}
 	}
 
+	public int publish(String topic, byte[] message) {
+		int message_id = getMessageid();
+
+		try {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
+				new MQTTHelperThread().execute(MQTT.publish(topic, message));
+			else
+				mConnectedThread.write(MQTT.publish(topic, message));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		return message_id;
+	}
+
 	public int publish(String topic, String message) {
 		int message_id = getMessageid();
 
 		try {
-			new MQTTHelperThread().execute(MQTT.publish(topic,
-					message.getBytes()));
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
+				new MQTTHelperThread().execute(MQTT.publish(topic,
+						message.getBytes()));
+			else
+				mConnectedThread.write(MQTT.publish(topic, message.getBytes()));
+
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -146,8 +203,12 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	public int subscribe(String topic, int qos) {
 		int message_id = getMessageid();
 		try {
-			new MQTTHelperThread().execute(MQTT.subscribe(message_id, topic,
-					qos));
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
+				new MQTTHelperThread().execute(MQTT.subscribe(message_id,
+						topic, qos));
+			else
+				mConnectedThread.write(MQTT.subscribe(message_id, topic, qos));
+
 		} catch (IOException e) {
 			e.printStackTrace();
 			return -1;
@@ -189,6 +250,10 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		this.uid = uid;
 	}
 
+	public void setCleanSession(boolean clean_session) {
+		this.clean_session = clean_session;
+	}
+
 	private int getMessageid() {
 		return (message_id == 65536 ? (message_id = 0) : message_id++);
 	}
@@ -196,6 +261,12 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	public synchronized void connect() {
 		if (DEBUG)
 			Log.d(TAG, "connect to: " + host);
+
+		// Cancel any thread currently running a ping check
+		if (mPingThread != null) {
+			mPingThread.cancel();
+			mPingThread = null;
+		}
 
 		// Cancel any thread attempting to make a connection
 		if (mState == STATE_CONNECTING) {
@@ -211,12 +282,6 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 			mConnectedThread = null;
 		}
 
-		// Cancel any thread currently running a ping check
-		if (mPingThread != null) {
-			mPingThread.cancel();
-			mPingThread = null;
-		}
-
 		// Start the thread to connect with the given device
 		mConnectThread = new ConnectThread(host, port);
 		mConnectThread.start();
@@ -227,6 +292,12 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	public synchronized void connected(Socket socket) {
 		if (DEBUG)
 			Log.d(TAG, "connected, Socket Type:");
+
+		// Cancel any thread currently running a ping check
+		if (mPingThread != null) {
+			mPingThread.cancel();
+			mPingThread = null;
+		}
 
 		// Cancel the thread that completed the connection
 		if (mConnectThread != null) {
@@ -240,12 +311,6 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 			mConnectedThread = null;
 		}
 
-		// Cancel any thread currently running a ping check
-		if (mPingThread != null) {
-			mPingThread.cancel();
-			mPingThread = null;
-		}
-
 		// Start the thread to manage the connection and perform transmissions
 		mConnectedThread = new ConnectedThread(socket);
 		mConnectedThread.start();
@@ -254,6 +319,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		mPingThread = new PingThread();
 		mPingThread.start();
 
+		// Send the connect message
 		connect(host, port, uid);
 
 		setState(STATE_CONNECTED);
@@ -275,8 +341,27 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	private void connectionLost() {
 		if (DEBUG)
 			Log.d(TAG, "connectionLost");
+	}
 
-		// MQTTService.this.start();
+	public void disconnect() {
+		// Cancel any thread currently running a ping check
+		if (mPingThread != null) {
+			mPingThread.cancel();
+			mPingThread = null;
+		}
+
+		// Cancel the thread that completed the connection
+		if (mConnectThread != null) {
+			mConnectThread.cancel();
+			mConnectThread = null;
+		}
+
+		// Cancel any thread currently running a connection
+		if (mConnectedThread != null) {
+			mConnectedThread.cancel();
+			mConnectedThread = null;
+		}
+
 	}
 
 	private synchronized void setState(int state) {
@@ -288,6 +373,10 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		if (mHandler != null)
 			// Give the new state to the Handler so the UI Activity can update
 			mHandler.obtainMessage(STATE_CHANGE, state, -1).sendToTarget();
+	}
+
+	public synchronized int getState() {
+		return mState;
 	}
 
 	private class PingThread extends Thread {
@@ -306,11 +395,16 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 
 		@Override
 		public void run() {
+			if (DEBUG)
+				Log.i(TAG, "BEGIN mPingthread");
+
 			boolean local_pingreq = pingreq;
 			long local_pingtime = pingtime;
 			long local_lastaction = lastaction;
 
-			while (true) {
+			int local_state = mState;
+
+			while (local_state == STATE_CONNECTED) {
 				if (local_pingreq != pingreq) {
 					// TODO React to when the listener thread changed the
 					// pingreq
@@ -335,16 +429,20 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 					if ((System.currentTimeMillis() - local_lastaction) > (PING_TIMEOUT + PING_GRACE)) {
 						// Disconnect?
 						// TODO Disconnect
-						if (DEBUG)
-							Log.i(TAG,
-									"Ping time out detected, should disconnect?");
+						// if (DEBUG)
+						// Log.i(TAG,
+						// "Ping time out detected, should disconnect?");
+						pingreq = false;
 					}
 				} else {
 					// If the last action was too long ago; send a ping
 					if ((System.currentTimeMillis() - local_lastaction) > PING_TIMEOUT) {
 						try {
 							// Send ping
-							new MQTTHelperThread().execute(MQTT.ping());
+							if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
+								new MQTTHelperThread().execute(MQTT.ping());
+							else
+								mConnectedThread.write(MQTT.ping());
 
 							// Set volatile pingreq var to true
 							pingreq = true;
@@ -358,10 +456,13 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 				}
 
 				try {
-					Thread.sleep(200);
+					Thread.sleep(500);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
+
+				if (local_state != mState)
+					local_state = mState;
 			}
 		}
 
@@ -391,12 +492,6 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		}
 
 		public void run() {
-			if (DEBUG)
-				Log.i(TAG, "BEGIN mPingThread");
-
-			boolean local_pingreq = pingreq;
-			long local_pingtime = pingtime;
-
 			if (DEBUG)
 				Log.i(TAG, "BEGIN mConnectThread");
 
@@ -591,8 +686,12 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		@Override
 		protected Void doInBackground(byte[]... params) {
 
-			for (int i = 0; i < params.length; i++)
-				mConnectedThread.write(params[i]);
+			for (int i = 0; i < params.length; i++) {
+				if (mConnectedThread != null)
+					mConnectedThread.write(params[i]);
+				else
+					break;
+			}
 
 			return null;
 		}
