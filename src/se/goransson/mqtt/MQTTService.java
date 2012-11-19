@@ -46,7 +46,7 @@ import android.util.Log;
 public class MQTTService extends Service implements MQTTConnectionConstants,
 		MQTTConstants {
 
-	private static final boolean DEBUG = false;
+	private static final boolean DEBUG = true;
 
 	private static final String TAG = "MQTTService";
 
@@ -362,6 +362,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 			mConnectedThread = null;
 		}
 
+		setState(STATE_NONE);
 	}
 
 	private synchronized void setState(int state) {
@@ -379,11 +380,15 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		return mState;
 	}
 
+	public void setKeepAlive(int milliseconds) {
+		KEEP_ALIVE_TIMER = milliseconds;
+	}
+
+	private int KEEP_ALIVE_TIMER = 10000;
+
 	private class PingThread extends Thread {
 
-		private static final int PING_TIMEOUT = 10000;
-
-		private static final int PING_GRACE = 2000;
+		private static final int KEEP_ALIVE_GRACE = 2000;
 
 		public PingThread() {
 			if (DEBUG)
@@ -426,7 +431,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 				if (local_pingreq) {
 					// If we're expecting a ping response; detect if we've timed
 					// out.
-					if ((System.currentTimeMillis() - local_lastaction) > (PING_TIMEOUT + PING_GRACE)) {
+					if ((System.currentTimeMillis() - local_lastaction) > (KEEP_ALIVE_TIMER + KEEP_ALIVE_GRACE)) {
 						// Disconnect?
 						// TODO Disconnect
 						// if (DEBUG)
@@ -436,7 +441,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 					}
 				} else {
 					// If the last action was too long ago; send a ping
-					if ((System.currentTimeMillis() - local_lastaction) > PING_TIMEOUT) {
+					if ((System.currentTimeMillis() - local_lastaction) > KEEP_ALIVE_TIMER) {
 						try {
 							// Send ping
 							if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
@@ -636,6 +641,8 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 				} catch (IOException e) {
 					Log.e(TAG, "disconnected", e);
 					connectionLost();
+					
+					disconnect();
 
 					// Start the service over to restart listening mode
 					// MQTTService.this.start();
@@ -662,6 +669,8 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 				lastaction = System.currentTimeMillis();
 			} catch (IOException e) {
 				Log.e(TAG, "Exception during write", e);
+
+				disconnect();
 			}
 		}
 
