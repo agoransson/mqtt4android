@@ -251,7 +251,7 @@ public class MQTT implements MQTTConstants, MQTTVersion {
 		} while ((digit & 128) != 0);
 		mqtt.remainingLength = len;
 
-		int offset = 0;
+		int offset = 1;
 
 		switch (mqtt.type) {
 		case CONNECT:
@@ -291,7 +291,7 @@ public class MQTT implements MQTTConstants, MQTTVersion {
 		}
 
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
-		for (int b = offset; b < mqtt.remainingLength+2; b++)
+		for (int b = offset; b < mqtt.remainingLength + offset; b++)
 			payload.write(message[b]);
 		mqtt.payload = payload.toByteArray();
 
