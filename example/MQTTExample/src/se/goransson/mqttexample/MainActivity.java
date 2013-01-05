@@ -2,10 +2,10 @@ package se.goransson.mqttexample;
 
 import java.util.ArrayList;
 
-import se.goransosn.mqtt.MQTTConnectionConstants;
-import se.goransosn.mqtt.MQTTConstants;
-import se.goransosn.mqtt.MQTTService;
-import se.goransosn.mqtt.MQTTService.MQTTBinder;
+import se.goransson.mqtt.MQTTConnectionConstants;
+import se.goransson.mqtt.MQTTConstants;
+import se.goransson.mqtt.MQTTService;
+import se.goransson.mqtt.MQTTService.MQTTBinder;
 import android.annotation.SuppressLint;
 import android.content.ComponentName;
 import android.content.Context;

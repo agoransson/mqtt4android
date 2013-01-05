@@ -155,16 +155,21 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	 * Send a CONNECT message to the server.
 	 */
 	private void connect(String host, int port, String uid) {
-		try {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
-				new MQTTHelperThread()
-						.execute(MQTT.connect(uid, clean_session));
-			else
-				mConnectedThread.write(MQTT.connect(uid, clean_session));
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
+		if (getState() != STATE_CONNECTED) {
+			try {
+				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
+					new MQTTHelperThread().execute(MQTT.connect(uid,
+							clean_session));
+				else
+					mConnectedThread.write(MQTT.connect(uid, clean_session));
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		} else {
+			if (DEBUG)
+				Log.i(TAG, "Already connected");
 		}
 	}
 
@@ -323,6 +328,11 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		connect(host, port, uid);
 
 		setState(STATE_CONNECTED);
+		
+
+		
+		// Set the current time as the last action
+		lastaction = System.currentTimeMillis();
 	}
 
 	/**
@@ -409,65 +419,80 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 
 			int local_state = mState;
 
-			while (local_state == STATE_CONNECTED) {
-				if (local_pingreq != pingreq) {
-					// TODO React to when the listener thread changed the
-					// pingreq
-					local_pingreq = pingreq;
-
+			while (true) {
+				if( local_state != mState){
+					local_state = mState;
+					
 					if (DEBUG)
-						Log.i(TAG, "Detected change in volatile var: pingreq");
+						Log.i(TAG, "Detected change in volatile var: state");
 				}
+				
+				if (local_state == STATE_CONNECTED) {
+					if (local_pingreq != pingreq) {
+						// TODO React to when the listener thread changed the
+						// pingreq
+						local_pingreq = pingreq;
 
-				if (local_lastaction != lastaction) {
-					// TODO React to when a new action is set
-					local_lastaction = lastaction;
-
-					if (DEBUG)
-						Log.i(TAG,
-								"Detected change in volatile var: lastaction");
-				}
-
-				if (local_pingreq) {
-					// If we're expecting a ping response; detect if we've timed
-					// out.
-					if ((System.currentTimeMillis() - local_lastaction) > (KEEP_ALIVE_TIMER + KEEP_ALIVE_GRACE)) {
-						// Disconnect?
-						// TODO Disconnect
-						// if (DEBUG)
-						// Log.i(TAG,
-						// "Ping time out detected, should disconnect?");
-						pingreq = false;
+						if (DEBUG)
+							Log.i(TAG,
+									"Detected change in volatile var: pingreq");
 					}
-				} else {
-					// If the last action was too long ago; send a ping
-					if ((System.currentTimeMillis() - local_lastaction) > KEEP_ALIVE_TIMER) {
-						try {
-							// Send ping
-							if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
-								new MQTTHelperThread().execute(MQTT.ping());
-							else
-								mConnectedThread.write(MQTT.ping());
 
-							// Set volatile pingreq var to true
-							pingreq = true;
+					if (local_lastaction != lastaction) {
+						// TODO React to when a new action is set
+						local_lastaction = lastaction;
 
-							if (DEBUG)
-								Log.i(TAG, "Sending ping req");
-						} catch (IOException e) {
-							e.printStackTrace();
+						if (DEBUG)
+							Log.i(TAG,
+									"Detected change in volatile var: lastaction");
+					}
+
+					if (local_pingreq) {
+						// If we're expecting a ping response; detect if we've
+						// timed
+						// out.
+						if ((System.currentTimeMillis() - local_lastaction) > (KEEP_ALIVE_TIMER + KEEP_ALIVE_GRACE)) {
+							// Disconnect?
+							// TODO Disconnect
+							// if (DEBUG)
+							Log.i(TAG,
+									"Ping time out detected, should disconnect?");
+							pingreq = false;
+						}
+					} else {
+						// If the last action was too long ago; send a ping
+						if ((System.currentTimeMillis() - local_lastaction) > KEEP_ALIVE_TIMER) {
+							try {
+								// Send ping
+								if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
+									new MQTTHelperThread().execute(MQTT.ping());
+								else
+									mConnectedThread.write(MQTT.ping());
+
+								// Set volatile pingreq var to true
+								pingreq = true;
+
+								if (DEBUG)
+									Log.i(TAG, "Sending ping req");
+							} catch (IOException e) {
+								e.printStackTrace();
+							}
 						}
 					}
-				}
 
+//					if (local_state != mState)
+//						local_state = mState;
+					
+				} else {
+					if (DEBUG)
+						Log.i(TAG, "Not connected??");
+				}
+				
 				try {
 					Thread.sleep(500);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-
-				if (local_state != mState)
-					local_state = mState;
 			}
 		}
 
@@ -584,64 +609,66 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 
 					if (mHandler != null)
 						// Send the obtained bytes to the UI Activity
-						mHandler.obtainMessage(MQTT_RAW_READ, bytes, -1, buffer)
-								.sendToTarget();
+						// mHandler.obtainMessage(MQTT_RAW_READ, bytes, -1,
+						// buffer)
+						// .sendToTarget();
 
-					if (bytes > 0) {
-						MQTTMessage msg = MQTT.decode(buffer);
+						if (bytes > 0) {
+							MQTTMessage msg = MQTT.decode(buffer);
 
-						// Share the recieved msg type back to activity
-						if (mHandler != null)
-							mHandler.obtainMessage(msg.type, msg.payload)
-									.sendToTarget();
+							// Share the recieved msg type back to activity
+							if (mHandler != null)
+								mHandler.obtainMessage(msg.type, msg.payload)
+										.sendToTarget();
 
-						// Handle automatic responses here
-						switch (msg.type) {
-						case PUBLISH:
-							// No need to act on normal PUBLISH messages.
-							break;
-						case PUBACK:
-							break;
-						case PUBREC:
-							break;
-						case PUBREL:
-							break;
-						case PUBCOMP:
-							break;
-						case SUBSCRIBE:
-							// The client shouldn't receive any SUBSCRIBE
-							// messages.
-							break;
-						case SUBACK:
-							break;
-						case UNSUBSCRIBE:
-							break;
-						case UNSUBACK:
-							break;
-						case PINGREQ:
-							// The client shouldn't receive any PINGREQ
-							// messages.
-							break;
-						case PINGRESP:
-							// TODO PINGREQ was successful, connections still
-							// alive.
-							pingreq = false;
+							// Handle automatic responses here
+							switch (msg.type) {
+							case PUBLISH:
+								// No need to act on normal PUBLISH messages.
+								break;
+							case PUBACK:
+								break;
+							case PUBREC:
+								break;
+							case PUBREL:
+								break;
+							case PUBCOMP:
+								break;
+							case SUBSCRIBE:
+								// The client shouldn't receive any SUBSCRIBE
+								// messages.
+								break;
+							case SUBACK:
+								break;
+							case UNSUBSCRIBE:
+								break;
+							case UNSUBACK:
+								break;
+							case PINGREQ:
+								// The client shouldn't receive any PINGREQ
+								// messages.
+								break;
+							case PINGRESP:
+								// TODO PINGREQ was successful, connections
+								// still
+								// alive.
+								pingreq = false;
 
-							if (DEBUG)
-								Log.i(TAG, "Got ping response");
+								if (DEBUG)
+									Log.i(TAG, "Got ping response");
 
-							break;
-						case DISCONNECT:
-							// TODO close all threads when receiving the
-							// DISCONNECT message.
-							break;
+								break;
+							case DISCONNECT:
+								// TODO close all threads when receiving the
+								// DISCONNECT message.
+								break;
+							}
 						}
-					}
 
 				} catch (IOException e) {
 					Log.e(TAG, "disconnected", e);
 					connectionLost();
-					
+
 					disconnect();
 
 					// Start the service over to restart listening mode
@@ -671,6 +698,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 				Log.e(TAG, "Exception during write", e);
 
 				disconnect();
+				connect();
 			}
 		}
 
