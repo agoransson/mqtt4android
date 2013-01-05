@@ -53,6 +53,9 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	/** Current state of the connection */
 	private volatile int mState = STATE_NONE;
 
+	/** How long to wait before a reconnect attempt is made */
+	private long RECONNECT_TIMER = 5000;
+
 	/** Thread to handle setup of connections */
 	private ConnectThread mConnectThread;
 
@@ -83,6 +86,15 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	private volatile boolean pingreq = false;
 	private volatile long pingtime = 0;
 	private volatile long lastaction = 0;
+
+	private boolean doAutomaticReconnect = false;
+	private Handler reconnectHandler = new Handler();
+	private Runnable recoonectRunnable = new Runnable() {
+		@Override
+		public void run() {
+			connect();
+		}
+	};
 
 	@Override
 	public void onCreate() {
@@ -188,6 +200,23 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		return message_id;
 	}
 
+	public int publish(String topic, byte[] message, boolean retain) {
+		int message_id = getMessageid();
+
+		try {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
+				new MQTTHelperThread().execute(MQTT.encode(PUBLISH, retain,
+						AT_MOST_ONCE, false, message, Integer.toString(1),
+						topic));
+			else
+				mConnectedThread.write(MQTT.publish(topic, message));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		return message_id;
+	}
+
 	public int publish(String topic, String message) {
 		int message_id = getMessageid();
 
@@ -205,7 +234,23 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		return message_id;
 	}
 
-	public int subscribe(String topic, int qos) {
+	public int subscribe(String topic, byte qos) {
+		int message_id = getMessageid();
+		try {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
+				new MQTTHelperThread().execute(MQTT.subscribe(message_id,
+						topic, qos));
+			else
+				mConnectedThread.write(MQTT.subscribe(message_id, topic, qos));
+
+		} catch (IOException e) {
+			e.printStackTrace();
+			return -1;
+		}
+		return message_id;
+	}
+
+	public int subscribe(String[] topic, byte[] qos) {
 		int message_id = getMessageid();
 		try {
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
@@ -261,6 +306,18 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 
 	private int getMessageid() {
 		return (message_id == 65536 ? (message_id = 0) : message_id++);
+	}
+
+	public void setReconnect(boolean reconnect) {
+		doAutomaticReconnect = reconnect;
+	}
+
+	public void reconnect() {
+		reconnectHandler.postDelayed(recoonectRunnable, RECONNECT_TIMER);
+	}
+
+	public void reconnect(long millis) {
+		reconnectHandler.postDelayed(recoonectRunnable, millis);
 	}
 
 	public synchronized void connect() {
@@ -328,9 +385,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		connect(host, port, uid);
 
 		setState(STATE_CONNECTED);
-		
 
-		
 		// Set the current time as the last action
 		lastaction = System.currentTimeMillis();
 	}
@@ -342,7 +397,8 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		if (DEBUG)
 			Log.d(TAG, "connectionFailed");
 
-		// MQTTService.this.start();
+		if (doAutomaticReconnect)
+			reconnect();
 	}
 
 	/**
@@ -351,6 +407,9 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	private void connectionLost() {
 		if (DEBUG)
 			Log.d(TAG, "connectionLost");
+
+		if (doAutomaticReconnect)
+			reconnect();
 	}
 
 	public void disconnect() {
@@ -420,13 +479,13 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 			int local_state = mState;
 
 			while (true) {
-				if( local_state != mState){
+				if (local_state != mState) {
 					local_state = mState;
-					
+
 					if (DEBUG)
 						Log.i(TAG, "Detected change in volatile var: state");
 				}
-				
+
 				if (local_state == STATE_CONNECTED) {
 					if (local_pingreq != pingreq) {
 						// TODO React to when the listener thread changed the
@@ -480,14 +539,14 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 						}
 					}
 
-//					if (local_state != mState)
-//						local_state = mState;
-					
+					// if (local_state != mState)
+					// local_state = mState;
+
 				} else {
 					if (DEBUG)
 						Log.i(TAG, "Not connected??");
 				}
-				
+
 				try {
 					Thread.sleep(500);
 				} catch (InterruptedException e) {
@@ -598,7 +657,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 			if (DEBUG)
 				Log.i(TAG, "BEGIN mConnectedThread");
 
-			byte[] buffer = new byte[1024];
+			byte[] buffer = new byte[16384];
 			int bytes;
 
 			// Keep listening to the InputStream while connected
@@ -618,7 +677,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 
 							// Share the recieved msg type back to activity
 							if (mHandler != null)
-								mHandler.obtainMessage(msg.type, msg.payload)
+								mHandler.obtainMessage(msg.type, msg)
 										.sendToTarget();
 
 							// Handle automatic responses here
@@ -666,13 +725,13 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 						}
 
 				} catch (IOException e) {
-					Log.e(TAG, "disconnected", e);
+					if (DEBUG)
+						Log.e(TAG, "disconnected", e);
+
 					connectionLost();
 
 					disconnect();
 
-					// Start the service over to restart listening mode
-					// MQTTService.this.start();
 					break;
 				}
 			}
@@ -698,7 +757,9 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 				Log.e(TAG, "Exception during write", e);
 
 				disconnect();
-				connect();
+
+				if (doAutomaticReconnect)
+					reconnect();
 			}
 		}
 
