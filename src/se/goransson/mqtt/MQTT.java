@@ -305,9 +305,10 @@ public class MQTT implements MQTTConstants, MQTTVersion {
 			mqtt.variableHeader.put("topic_name", topic_name);			
 			i += topic_name_len;
 
-			int message_id = (message[i++] << 8 & 0xFF00 | message[i++] & 0xFF);
-			mqtt.variableHeader.put("message_id", Integer.toString(message_id));
-
+			if( mqtt.QoS > AT_MOST_ONCE ){
+				int message_id = (message[i++] << 8 & 0xFF00 | message[i++] & 0xFF);
+				mqtt.variableHeader.put("message_id", Integer.toString(message_id));
+			}
 			break;
 
 		case SUBSCRIBE:

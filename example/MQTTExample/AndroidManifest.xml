@@ -4,7 +4,7 @@
     android:versionName="1.0" >
 
     <uses-sdk
-        android:minSdkVersion="9"
+        android:minSdkVersion="11"
         android:targetSdkVersion="15" />
     <uses-permission android:name="android.permission.INTERNET"/>
 
@@ -21,7 +21,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <service android:name="se.goransosn.mqtt.MQTTService"></service>
+        <service android:name="se.goransson.mqtt.MQTTService"></service>
         
     </application>
 

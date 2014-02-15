@@ -169,11 +169,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	private void connect(String host, int port, String uid) {
 		if (getState() != STATE_CONNECTED) {
 			try {
-				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
-					new MQTTHelperThread().execute(MQTT.connect(uid,
-							clean_session));
-				else
-					mConnectedThread.write(MQTT.connect(uid, clean_session));
+				mConnectedThread.write(MQTT.connect(uid, clean_session));
 			} catch (UnsupportedEncodingException e) {
 				e.printStackTrace();
 			} catch (IOException e) {
@@ -189,10 +185,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		int message_id = getMessageid();
 
 		try {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
-				new MQTTHelperThread().execute(MQTT.publish(topic, message));
-			else
-				mConnectedThread.write(MQTT.publish(topic, message));
+			mConnectedThread.write(MQTT.publish(topic, message));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -204,12 +197,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		int message_id = getMessageid();
 
 		try {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
-				new MQTTHelperThread().execute(MQTT.encode(PUBLISH, retain,
-						AT_MOST_ONCE, false, message, Integer.toString(1),
-						topic));
-			else
-				mConnectedThread.write(MQTT.publish(topic, message));
+			mConnectedThread.write(MQTT.publish(topic, message));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -221,11 +209,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		int message_id = getMessageid();
 
 		try {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
-				new MQTTHelperThread().execute(MQTT.publish(topic,
-						message.getBytes()));
-			else
-				mConnectedThread.write(MQTT.publish(topic, message.getBytes()));
+			mConnectedThread.write(MQTT.publish(topic, message.getBytes()));
 
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -237,11 +221,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	public int subscribe(String topic, byte qos) {
 		int message_id = getMessageid();
 		try {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
-				new MQTTHelperThread().execute(MQTT.subscribe(message_id,
-						topic, qos));
-			else
-				mConnectedThread.write(MQTT.subscribe(message_id, topic, qos));
+			mConnectedThread.write(MQTT.subscribe(message_id, topic, qos));
 
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -253,11 +233,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	public int subscribe(String[] topic, byte[] qos) {
 		int message_id = getMessageid();
 		try {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
-				new MQTTHelperThread().execute(MQTT.subscribe(message_id,
-						topic, qos));
-			else
-				mConnectedThread.write(MQTT.subscribe(message_id, topic, qos));
+			mConnectedThread.write(MQTT.subscribe(message_id, topic, qos));
 
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -396,9 +372,15 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	private void connectionFailed() {
 		if (DEBUG)
 			Log.d(TAG, "connectionFailed");
-
+		
+		
 		if (doAutomaticReconnect)
 			reconnect();
+		
+
+		if (mHandler != null)
+			// Give the new state to the Handler so the UI Activity can update
+			mHandler.obtainMessage(STATE_CHANGE, STATE_CONNECTION_FAILED, -1).sendToTarget();
 	}
 
 	/**
@@ -478,7 +460,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 
 			int local_state = mState;
 
-			while (true) {
+			while (!interrupted()) {
 				if (local_state != mState) {
 					local_state = mState;
 
@@ -522,11 +504,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 						// If the last action was too long ago; send a ping
 						if ((System.currentTimeMillis() - local_lastaction) > KEEP_ALIVE_TIMER) {
 							try {
-								// Send ping
-								if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
-									new MQTTHelperThread().execute(MQTT.ping());
-								else
-									mConnectedThread.write(MQTT.ping());
+								mConnectedThread.write(MQTT.ping());
 
 								// Set volatile pingreq var to true
 								pingreq = true;
@@ -543,15 +521,19 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 					// local_state = mState;
 
 				} else {
-					if (DEBUG)
-						Log.i(TAG, "Not connected??");
+//					if (DEBUG)
+//						Log.i(TAG, "Not connected??");
+					Thread.currentThread().interrupt();
 				}
-
-				try {
-					Thread.sleep(500);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
+				
+				if( !interrupted()  ){
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}	
 				}
+				
 			}
 		}
 
@@ -661,7 +643,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 			int bytes;
 
 			// Keep listening to the InputStream while connected
-			while (true) {
+			while (!isInterrupted()) {
 				try {
 					// Read from the InputStream
 					bytes = mmInStream.read(buffer);
@@ -743,7 +725,8 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		 * @param buffer
 		 *            The bytes to write
 		 */
-		public void write(byte[] buffer) {
+		public synchronized void write(byte[] buffer) {
+			Log.i(TAG, "write()");
 			try {
 				mmOutStream.write(buffer);
 
@@ -771,27 +754,4 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 			}
 		}
 	}
-
-	/**
-	 * Helper thread, making sure that all network access is handled outside of
-	 * the UI thread.
-	 * 
-	 * @author ksango
-	 * 
-	 */
-	class MQTTHelperThread extends AsyncTask<byte[], Void, Void> {
-
-		@Override
-		protected Void doInBackground(byte[]... params) {
-
-			for (int i = 0; i < params.length; i++) {
-				if (mConnectedThread != null)
-					mConnectedThread.write(params[i]);
-				else
-					break;
-			}
-
-			return null;
-		}
-	};
 }

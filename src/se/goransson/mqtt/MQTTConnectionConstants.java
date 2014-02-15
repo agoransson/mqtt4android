@@ -41,6 +41,9 @@ public interface MQTTConnectionConstants {
 	/** Connection established! */
 	public static final int STATE_CONNECTED = CONSTANTS_BASE + 2;
 
+	/** Connection attempt failed */
+	public static final int STATE_CONNECTION_FAILED = CONSTANTS_BASE + 3;
+	
 	/** Indicate that the state of the connection has changed */
 	public static final int STATE_CHANGE = CONSTANTS_BASE + 5;
 

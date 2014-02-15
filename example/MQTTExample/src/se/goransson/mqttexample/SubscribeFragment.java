@@ -1,7 +1,7 @@
 package se.goransson.mqttexample;
 
+import android.app.Fragment;
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -41,7 +41,8 @@ public class SubscribeFragment extends Fragment {
 	};
 
 	public void appendMessage(String msg) {
-		log.append("\n");
-		log.append(msg);
+		String text = log.getText().toString();
+		text = msg + "\n" + text;
+		log.setText(text);
 	}
 }

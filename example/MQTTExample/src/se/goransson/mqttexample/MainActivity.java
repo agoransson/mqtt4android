@@ -1,59 +1,46 @@
 package se.goransson.mqttexample;
 
-import java.util.ArrayList;
-
 import se.goransson.mqtt.MQTTConnectionConstants;
 import se.goransson.mqtt.MQTTConstants;
+import se.goransson.mqtt.MQTTMessage;
 import se.goransson.mqtt.MQTTService;
 import se.goransson.mqtt.MQTTService.MQTTBinder;
-import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentActivity;
-import android.support.v4.view.ViewPager;
 import android.util.Log;
-import android.view.Menu;
 import android.widget.Toast;
 
-public class MainActivity extends FragmentActivity implements
-		MQTTConnectionConstants, MQTTConstants {
+public class MainActivity extends Activity implements MQTTConnectionConstants,
+		MQTTConstants {
 
 	protected static final String TAG = "MQTTExample";
-
-	ViewPager mViewPager;
-
-	ArrayList<Fragment> pages = new ArrayList<Fragment>();
-
-	MyFragmentPagerAdapter pageAdapter;
 
 	MQTTService mqtt;
 
 	boolean isBound;
 
+	private Controller mController;
+
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 
-		mViewPager = new ViewPager(this);
-		mViewPager.setId(R.id.pager);
+		setContentView(R.layout.activity_main);
 
-		pages.add(new SubscribeFragment());
-		pages.add(new PublishFragment());
+		mController = new Controller(this);
+	}
 
-		pageAdapter = new MyFragmentPagerAdapter(getSupportFragmentManager(),
-				pages);
-
-		mViewPager.setAdapter(pageAdapter);
-
-		setContentView(mViewPager);
+	@Override
+	protected void onResume() {
+		mController.showConnectionFragment();
+		super.onResume();
 	}
 
 	@Override
@@ -69,14 +56,7 @@ public class MainActivity extends FragmentActivity implements
 		unbindService(connection);
 	}
 
-	@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		getMenuInflater().inflate(R.menu.activity_main, menu);
-		return true;
-	}
-
 	private ServiceConnection connection = new ServiceConnection() {
-		@SuppressLint("NewApi")
 		@Override
 		public void onServiceConnected(ComponentName name, IBinder binder) {
 			mqtt = ((MQTTBinder) binder).getService();
@@ -84,17 +64,17 @@ public class MainActivity extends FragmentActivity implements
 
 			mqtt.setHandler(mHandler);
 
-			// Default host is test.mosquitto.org (you should change this!)
-			// mqtt.setHost("195.178.234.111");
-
-			// Default mqtt port is 1883
+			// // Default host is test.mosquitto.org (you should change this!)
+			// mqtt.setHost("mqtt.mah.se");
+			//
+			// // Default mqtt port is 1883
 			// mqtt.setPort(1883);
-
-			// Set a unique id for this client-broker combination
-			mqtt.setId(Build.SERIAL);
-
-			// Open the connection to the MQTT server
-			mqtt.connect();
+			//
+			// // Set a unique id for this client-broker combination
+			// mqtt.setId(Build.SERIAL);
+			//
+			// // Open the connection to the MQTT server
+			// mqtt.connect();
 		}
 
 		@Override
@@ -121,20 +101,24 @@ public class MainActivity extends FragmentActivity implements
 				case STATE_CONNECTED:
 					Toast.makeText(MainActivity.this, "Yay! Connected!",
 							Toast.LENGTH_SHORT).show();
+						mController.showSubscribeFragment();
+					break;
+				case STATE_CONNECTION_FAILED:
+					Toast.makeText(MainActivity.this, "Connection failed",
+							Toast.LENGTH_SHORT).show();
 					break;
 				}
 				break;
 
 			case PUBLISH:
-				byte[] payload = (byte[]) msg.obj;
+				MQTTMessage message = (MQTTMessage) msg.obj;
+
+				byte[] payload = message.payload;
 
 				Log.i(TAG, "recieved payload");
 
-				SubscribeFragment fragment = (SubscribeFragment) pageAdapter
-						.getItem(0);
-
-				String message = new String(payload);
-				fragment.appendMessage(message);
+				String text = new String(payload);
+				mController.appendMessage(text);
 				break;
 
 			case MQTT_RAW_READ:
@@ -146,6 +130,20 @@ public class MainActivity extends FragmentActivity implements
 		}
 
 	};
+
+	protected void connect(String host, String client) {
+		// Default host is test.mosquitto.org (you should change this!)
+		mqtt.setHost(host);
+
+		// Default mqtt port is 1883
+		mqtt.setPort(1883);
+
+		// Set a unique id for this client-broker combination
+		mqtt.setId(client);
+
+		// Open the connection to the MQTT server
+		mqtt.connect();
+	}
 
 	protected void publish(String topic, String message) {
 		mqtt.publish(topic, message);

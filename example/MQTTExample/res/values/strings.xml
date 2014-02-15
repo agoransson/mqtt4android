@@ -8,5 +8,7 @@
     <string name="subscribe_hint">Enter topic here...</string>
     <string name="publish_message">Enter message here...</string>
     <string name="publish_button">Publish</string>
+    <string name="connect">Connect</string>
+    <string name="menu_connect">Open connection</string>
 
 </resources>
