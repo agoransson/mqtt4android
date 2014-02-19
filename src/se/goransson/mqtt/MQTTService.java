@@ -159,6 +159,12 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		}
 	}
 
+	/**
+	 * Set Handler that recieves all service state messages and mqtt messages
+	 * 
+	 * @param handler
+	 *            The listener
+	 */
 	public void setHandler(Handler handler) {
 		mHandler = handler;
 	}
@@ -181,6 +187,28 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		}
 	}
 
+	/**
+	 * Publish a message (String) to a specified topic.
+	 * 
+	 * @param topic
+	 *            Topic to publish to
+	 * @param message
+	 *            Message to publish
+	 * @return Message id
+	 */
+	public int publish(String topic, String message) {
+		return this.publish(topic, message.getBytes());
+	}
+	
+	/**
+	 * Publish a message (byte[]) to a specified topic.
+	 * 
+	 * @param topic
+	 *            Topic to publish to
+	 * @param message
+	 *            Message to publish
+	 * @return Message id
+	 */
 	public int publish(String topic, byte[] message) {
 		int message_id = getMessageid();
 
@@ -193,6 +221,17 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		return message_id;
 	}
 
+	/**
+	 * Publish a message (byte[]) to a specified topic.
+	 * 
+	 * @param topic
+	 *            Topic to publish to
+	 * @param message
+	 *            Message to publish
+	 * @param retain
+	 *            Should the message be retained on server? True or false
+	 * @return Message id
+	 */
 	public int publish(String topic, byte[] message, boolean retain) {
 		int message_id = getMessageid();
 
@@ -205,19 +244,36 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		return message_id;
 	}
 
-	public int publish(String topic, String message) {
+	/**
+	 * Subscribe to a topic with Quality of Service (QoS) level
+	 * {@link #AT_MOST_ONCE}
+	 * 
+	 * @param topic
+	 *            Topic to subscribe to
+	 * @return Message id
+	 */
+	public int subscribe(String topic) {
 		int message_id = getMessageid();
-
 		try {
-			mConnectedThread.write(MQTT.publish(topic, message.getBytes()));
-
+			mConnectedThread.write(MQTT.subscribe(message_id, topic,
+					AT_MOST_ONCE));
 		} catch (IOException e) {
 			e.printStackTrace();
+			return -1;
 		}
-
 		return message_id;
 	}
 
+	/**
+	 * Subscribe to a topic
+	 * 
+	 * @param topic
+	 *            Topic to subscribe to
+	 * @param qos
+	 *            Quality of service, can be {@link #AT_MOST_ONCE},
+	 *            {@link #AT_LEAST_ONCE}, or {@link #EXACTLY_ONCE}.
+	 * @return Message id
+	 */
 	public int subscribe(String topic, byte qos) {
 		int message_id = getMessageid();
 		try {
@@ -230,11 +286,21 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		return message_id;
 	}
 
-	public int subscribe(String[] topic, byte[] qos) {
+	/**
+	 * Subscribe to multiple topics with quality of service
+	 * {@link #AT_MOST_ONCE}
+	 * 
+	 * @param topics
+	 *            Topics to subscribe to
+	 * @return Message id
+	 */
+	public int subscribe(String[] topics) {
 		int message_id = getMessageid();
 		try {
-			mConnectedThread.write(MQTT.subscribe(message_id, topic, qos));
-
+			byte[] qoss = new byte[topics.length];
+			for (int i = 0; i < qoss.length; i++)
+				qoss[i] = AT_MOST_ONCE;
+			mConnectedThread.write(MQTT.subscribe(message_id, topics, qoss));
 		} catch (IOException e) {
 			e.printStackTrace();
 			return -1;
@@ -242,27 +308,48 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		return message_id;
 	}
 
-	// public synchronized void start() {
-	// if (DEBUG)
-	// Log.d(TAG, "start");
-	//
-	// // Cancel any thread attempting to make a connection
-	// if (mConnectThread != null) {
-	// mConnectThread.cancel();
-	// mConnectThread = null;
-	// }
-	//
-	// // Cancel any thread currently running a connection
-	// if (mConnectedThread != null) {
-	// mConnectedThread.cancel();
-	// mConnectedThread = null;
-	// }
-	//
-	// setState(STATE_NONE);
-	//
-	// // if (host != null)
-	// // connect(host, port);
-	// }
+	/**
+	 * Subscribe to multiple topics
+	 * 
+	 * @param topic
+	 *            Topic to subscribe to
+	 * @param qos
+	 *            Quality of service, can be {@link #AT_MOST_ONCE},
+	 *            {@link #AT_LEAST_ONCE}, or {@link #EXACTLY_ONCE}.
+	 * @return Message id
+	 */
+	public int subscribe(String[] topics, byte[] qoss) {
+		int message_id = getMessageid();
+		try {
+			mConnectedThread.write(MQTT.subscribe(message_id, topics, qoss));
+		} catch (IOException e) {
+			e.printStackTrace();
+			return -1;
+		}
+		return message_id;
+	}
+
+//	public synchronized void start() {
+//		if (DEBUG)
+//			Log.d(TAG, "start");
+//
+//		// Cancel any thread attempting to make a connection
+//		if (mConnectThread != null) {
+//			mConnectThread.cancel();
+//			mConnectThread = null;
+//		}
+//
+//		// Cancel any thread currently running a connection
+//		if (mConnectedThread != null) {
+//			mConnectedThread.cancel();
+//			mConnectedThread = null;
+//		}
+//
+//		setState(STATE_NONE);
+//
+//		// if (host != null)
+//		// connect(host, port);
+//	}
 
 	public void setHost(String host) {
 		this.host = host;
@@ -372,15 +459,14 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 	private void connectionFailed() {
 		if (DEBUG)
 			Log.d(TAG, "connectionFailed");
-		
-		
+
 		if (doAutomaticReconnect)
 			reconnect();
-		
 
 		if (mHandler != null)
 			// Give the new state to the Handler so the UI Activity can update
-			mHandler.obtainMessage(STATE_CHANGE, STATE_CONNECTION_FAILED, -1).sendToTarget();
+			mHandler.obtainMessage(STATE_CHANGE, STATE_CONNECTION_FAILED, -1)
+					.sendToTarget();
 	}
 
 	/**
@@ -521,19 +607,19 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 					// local_state = mState;
 
 				} else {
-//					if (DEBUG)
-//						Log.i(TAG, "Not connected??");
+					// if (DEBUG)
+					// Log.i(TAG, "Not connected??");
 					Thread.currentThread().interrupt();
 				}
-				
-				if( !interrupted()  ){
+
+				if (!interrupted()) {
 					try {
 						Thread.sleep(500);
 					} catch (InterruptedException e) {
 						e.printStackTrace();
-					}	
+					}
 				}
-				
+
 			}
 		}
 

@@ -112,11 +112,13 @@ public class MainActivity extends Activity implements MQTTConnectionConstants,
 
 			case PUBLISH:
 				MQTTMessage message = (MQTTMessage) msg.obj;
-
+				
+				String topic = (String) message.variableHeader.remove("topic_name");
+				
 				byte[] payload = message.payload;
 
 				Log.i(TAG, "recieved payload");
-
+				
 				String text = new String(payload);
 				mController.appendMessage(text);
 				break;

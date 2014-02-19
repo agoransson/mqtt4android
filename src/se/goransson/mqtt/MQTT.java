@@ -265,7 +265,7 @@ public class MQTT implements MQTTConstants, MQTTVersion {
 		return mqtt.toByteArray();
 	}
 
-	public static MQTTMessage decode(byte[] message) {
+	protected static MQTTMessage decode(byte[] message) {
 		int i = 0;
 		MQTTMessage mqtt = new MQTTMessage();
 		mqtt.type = (message[i] >> 4) & 0x0F;
