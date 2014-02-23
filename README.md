@@ -1,15 +1,15 @@
 mqtt4android
 ============
 
-This library creates a new service called MQTTService.java, your application will conn
+This library creates a new service called MQTTService.java which allows for a easy connection to any MQTT server running standard version 3.1.
 
-# Installation (Eclipse only)
+## Installation (Eclipse only)
 
-1. Clone library `git clone git@github.com:agoransson/mqtt4android
+1. Clone library `git clone git@github.com:agoransson/mqtt4android`s
 2. Add Eclipse project to your workspace
 3. Make sure you have correct Android SDK installed (you can change this SDK version to one that suits your project also, there is no need for special SDK)
 
-# Create MQTT enabled Android project
+## Create MQTT enabled Android project
 
 1. Create new Android application
 `File &#8594; New &#8594; Other &#8594; Android project``
@@ -93,12 +93,12 @@ protected void onStop() {
 }
 ```
 
-# Example usage
+## Example usage
 The following small examples show how basic usage for MQTT.
 
-# Connect to MQTT Server
-1. Connecting to an MQTT server can only be done once the service connection has been established. Therefore you're recommended to attempt the connection in the service connection object after the Handler has been linked.
-You can of course issue the connection elsewhere, as lone as you make sure the service connection is "alive and kicking".
+## Connect to MQTT Server
+Connecting to an MQTT server can only be done once the service connection has been established. Therefore you're recommended to attempt the connection in the service connection object after the Handler has been linked.
+You can of course issue the connection elsewhere, as long as you make sure the service connection is "alive and kicking".
 
 ```java
 // Default host is test.mosquitto.org (you should change this!)
@@ -114,7 +114,8 @@ mqtt.setId(Build.SERIAL);
 mqtt.connect();
 ```
 
-# Subscribe to topic
+## Subscribe to topic
+There are multiple ways of subscribing to a topic.
 ```java
 // Subscribe to a topic with Quality of Service AT_MOST_ONCE
 mqtt.subscribe(topic);
@@ -126,8 +127,8 @@ mqtt.subscribe(topics[]);
 mqtt.subscribe(topics[], qoss[]);
 ```
 
-# Publish to topic
-There are multiple ways of publishing to an MQTT topic, the simplest
+## Publish to topic
+There are multiple ways of publishing to an MQTT topic.
 ```java
 // Publish a String message
 mqtt.publish("mytopic", "my message");

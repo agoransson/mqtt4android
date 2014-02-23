@@ -17,6 +17,24 @@ import android.os.Message;
 import android.util.Log;
 import android.widget.Toast;
 
+/**
+ * Copyright 2014 Andreas Gšransson
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ * 
+ * @author ksango
+ * 
+ */
 public class MainActivity extends Activity implements MQTTConnectionConstants,
 		MQTTConstants {
 
@@ -101,7 +119,7 @@ public class MainActivity extends Activity implements MQTTConnectionConstants,
 				case STATE_CONNECTED:
 					Toast.makeText(MainActivity.this, "Yay! Connected!",
 							Toast.LENGTH_SHORT).show();
-						mController.showSubscribeFragment();
+					mController.showSubscribeFragment();
 					break;
 				case STATE_CONNECTION_FAILED:
 					Toast.makeText(MainActivity.this, "Connection failed",
@@ -112,13 +130,14 @@ public class MainActivity extends Activity implements MQTTConnectionConstants,
 
 			case PUBLISH:
 				MQTTMessage message = (MQTTMessage) msg.obj;
-				
-				String topic = (String) message.variableHeader.remove("topic_name");
-				
+
+				String topic = (String) message.variableHeader
+						.remove("topic_name");
+
 				byte[] payload = message.payload;
 
 				Log.i(TAG, "recieved payload");
-				
+
 				String text = new String(payload);
 				mController.appendMessage(text);
 				break;

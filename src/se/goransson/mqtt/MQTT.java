@@ -160,6 +160,18 @@ public class MQTT implements MQTTConstants, MQTTVersion {
 		return encode(CONNECT, false, 0, false, payload.toByteArray(), "false",
 				"false", "false", "false", Boolean.toString(clean_session));
 	}
+	
+	public static byte[] connect(String identifier, String username,
+			String password) throws IOException {
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		payload.write(0);
+		payload.write(identifier.length());
+		payload.write(identifier.getBytes("UTF-8"));
+		payload.write(username.getBytes("UTF-8"));
+		payload.write(password.getBytes("UTF-8"));
+		return encode(CONNECT, false, 0, false, payload.toByteArray(), "true",
+				"false", "false", "false", "true");
+	}
 
 	/**
 	 * Low level compilation of an MQTT package.
