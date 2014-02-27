@@ -813,6 +813,7 @@ public class MQTTService extends Service implements MQTTConnectionConstants,
 		 */
 		public synchronized void write(byte[] buffer) {
 			Log.i(TAG, "write()");
+			Log.i(TAG, new String(buffer));
 			try {
 				mmOutStream.write(buffer);
 

@@ -103,28 +103,28 @@ public class XivelyActivity extends Activity implements
 			try {
 				JSONObject datastreamX = new JSONObject();
 				datastreamX.put("id", "x");
-				datastreamX.put("current_value", Float.toString(valX));
+				datastreamX.put("current_value", valX);
 
 				JSONObject datastreamY = new JSONObject();
 				datastreamY.put("id", "y");
-				datastreamY.put("current_value", Float.toString(valY));
+				datastreamY.put("current_value", valY);
 
 				JSONObject datastreamZ = new JSONObject();
 				datastreamZ.put("id", "z");
-				datastreamZ.put("current_value", Float.toString(valZ));
+				datastreamZ.put("current_value", valZ);
 				
 				JSONArray datastreams = new JSONArray();
 				datastreams.put(datastreamX);
 				datastreams.put(datastreamY);
 				datastreams.put(datastreamZ);
 				
-				JSONObject obj = new JSONObject();
-				obj.put("version", "1.0.0");
-				obj.put("datastreams", datastreams);
+				JSONObject request = new JSONObject();
+				request.put("version", "1.0.0");
+				request.put("datastreams", datastreams);
 				
 				mqtt.publish(
 						"TBUu1rX3sHnDE6hNkRN5eGzHq4qzbhxCx8jUlnM4NmhRDkZd/v2/feeds/1145308537.json",
-						obj.toString());
+						request.toString());
 			} catch (JSONException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
