@@ -24,10 +24,13 @@ package se.goransson.mqtt;
  */
 public interface MQTTVersion {
 
-	/** MQTT Version number */
-	static byte VERSION = (byte) 0x03;
+	/** MQTT 3.1 Version name */
+	static String NAME_31 = "MQIsdp";
+	/** MQTT 3.1 Version number */
+	static byte VERSION_31 = (byte) 0x03;
 
-	/** MQTT Version name */
-	static String NAME = "MQIsdp";
-
+	/** MQTT 3.1.1 Version name */
+	static String NAME_311 = "MQTT";
+	/** MQTT 3.1 Version number */
+	static byte VERSION_311 = (byte) 0x04;
 }

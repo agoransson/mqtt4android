@@ -101,5 +101,12 @@ public interface MQTTConstants {
 
 	/** Connection was refused: not authorized */
 	static final byte CONNECTION_REFUSED_AUTH = 0x05;
-
+	
+	/*
+	 * Helper fields
+	 */
+	/** Minimum length of strings (byte[] length) */
+	static final int MIN_LENGTH = 0;
+	/** Maximum length of strings (byte[] length) */
+	static final int MAX_LENGTH = 65535;
 }
